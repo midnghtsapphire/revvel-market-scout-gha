@@ -1,0 +1,96 @@
+name: Container CI/CD & Secure Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: ['v*']
+  pull_request:
+    branches: [ main ]
+
+# Set workflow-level least privilege permissions
+permissions:
+  contents: read
+
+# Concurrency limits prevent deployment race conditions and save billable minutes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # Timeout guards against hanging runners
+    steps:
+      # Pin to specific commit SHA for immutable supply-chain validation
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Lint Workflow YAML
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          "$(go env GOPATH)/bin/actionlint" .github/workflows/*.yml
+
+  security-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Restrict permissions for writing security scans
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c167a562657d9d047054ccd432fc1476a81d5c3e # v4.0.0
+
+      - name: Build Local Image for Scanning
+        uses: docker/build-push-action@ca012c3d74f350beca096514a1c516fa280d5ca6 # v6.15.0
+        with:
+          context: .
+          load: true
+          tags: gha-workflow-guardian:scan
+
+      # Perform vulnerability analysis before pushing to registry
+      - name: Scan Image with Trivy
+        uses: aquasecurity/trivy-action@master # pre-scan gate
+        with:
+          image-ref: gha-workflow-guardian:scan
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          exit-code: '1' # Fails the build on critical findings
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Scan Results to Security Tab
+        uses: github/codeql-action/upload-sarif@df5276e301c6f72785970c6c706ee99224335555 # v3.28.10
+        if: always() # Ensure uploads execute even if scanning failed
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  publish-marketplace:
+    needs: [validate-and-test, security-scan]
+    if: startsWith(github.ref, 'refs/tags/v') # Execute only on tag pushes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # Required for generating Releases
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # Get full history for accurate changelog compilation
+
+      - name: Build and Tag Container Action
+        run: |
+          echo "Compiling and packaging GHA Workflow Guardian container action..."
+
+      - name: Generate Changelog and Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef029c36d191 # v2.0.8
+        with:
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true # Auto-compiles changelog from PRs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

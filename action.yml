@@ -1,0 +1,26 @@
+name: 'GHA Workflow Guardian'
+description: 'Secure composite action scanning GHA workflows for supply-chain risks, script injection vectors, and excessive permissions.'
+author: 'MarketScout GHA Scaffolder'
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  scan-path:
+    description: 'Path of the directory to analyze'
+    required: false
+    default: '.'
+  severity-threshold:
+    description: 'Minimum severity level to trigger workflow failure (LOW, MEDIUM, HIGH, CRITICAL)'
+    required: false
+    default: 'HIGH'
+
+outputs:
+  report-path:
+    description: 'Path where the security audit report was saved'
+  score-summary:
+    description: 'Condensed metric representing compliance index (0-100)'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'

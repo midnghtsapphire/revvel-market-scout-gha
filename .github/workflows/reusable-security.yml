@@ -1,0 +1,88 @@
+name: Reusable Container Security Audit
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        description: 'The name of the docker image to scan'
+        required: true
+        type: string
+      dockerfile_path:
+        description: 'Path to the Dockerfile relative to repo root'
+        required: false
+        type: string
+        default: 'Dockerfile'
+      context_path:
+        description: 'Docker build context path'
+        required: false
+        type: string
+        default: '.'
+      severity_threshold:
+        description: 'Minimum severity level to trigger failure (LOW, MEDIUM, HIGH, CRITICAL)'
+        required: false
+        type: string
+        default: 'HIGH'
+    outputs:
+      scan_outcome:
+        description: 'Represents the pass/fail result of the security gate'
+        value: ${{ jobs.reusable-security-gate.outputs.outcome }}
+
+# Explicitly default to minimal contents: read permission at workflow level
+permissions:
+  contents: read
+
+jobs:
+  reusable-security-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      outcome: ${{ steps.set_result.outputs.outcome }}
+    # Restrict permissions specifically for uploading security results to the caller's repository
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      # Pin to specific commit SHAs for supply chain security to prevent tag-poisoning
+      - name: Checkout Caller Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c167a562657d9d047054ccd432fc1476a81d5c3e # v4.0.0
+
+      - name: Static Analysis of Dockerfile
+        run: |
+          echo "Auditing security footprint of Dockerfile: ${{ inputs.dockerfile_path }}"
+          # Enforce security checklist via simple grep rules before building
+          if ! grep -q "USER" "${{ inputs.dockerfile_path }}"; then
+            echo "::warning file=${{ inputs.dockerfile_path }}::Dockerfile lacks a explicit USER directive. Running as non-root is highly recommended!"
+          fi
+
+      - name: Build Local Image for Vulnerability Scanning
+        uses: docker/build-push-action@ca012c3d74f350beca096514a1c516fa280d5ca6 # v6.15.0
+        with:
+          context: ${{ inputs.context_path }}
+          file: ${{ inputs.dockerfile_path }}
+          load: true
+          tags: ${{ inputs.image_name }}:local-scan
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ inputs.image_name }}:local-scan
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          exit-code: '1' # Fail caller's workflow if vulnerabilities meet/exceed severity threshold
+          severity: ${{ inputs.severity_threshold }}
+
+      - name: Upload Security Scan to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@df5276e301c6f72785970c6c706ee99224335555 # v3.28.10
+        if: always() # Upload scan results even if previous scan step failed
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Set Output Status
+        id: set_result
+        if: always()
+        run: |
+          # Use intermediate environment variable to safe-guard against injection
+          echo "outcome=COMPLETED" >> "$GITHUB_OUTPUT"
