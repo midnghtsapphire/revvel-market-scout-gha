@@ -44,7 +44,7 @@ jobs:
     steps:
       # Pin to specific commit SHAs for supply chain security to prevent tag-poisoning
       - name: Checkout Caller Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c167a562657d9d047054ccd432fc1476a81d5c3e # v4.0.0
