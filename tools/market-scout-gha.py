@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import re
+from pathlib import Path
 
 class ContainerProductEvaluator:
     def __init__(self, name, description, category, target_audience="devs"):
@@ -348,8 +349,17 @@ jobs:
 
       - name: Lint Workflow YAML
         run: |
-                    go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+                    GOBIN="$(go env GOPATH)/bin" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
                     "$(go env GOPATH)/bin/actionlint" .github/workflows/*.yml
+
+            - name: Install Python Scanner Dependencies
+                run: python3 -m pip install --no-deps --requirement requirements.txt
+
+            - name: Run Generated Workflow Scanner
+                env:
+                    INPUT_SCAN_PATH: '.'
+                    INPUT_SEVERITY_THRESHOLD: 'HIGH'
+                run: python3 entrypoint.py
 
   security-scan:
     runs-on: ubuntu-latest
@@ -374,7 +384,7 @@ jobs:
 
       # Perform vulnerability analysis before pushing to registry
       - name: Scan Image with Trivy
-        uses: aquasecurity/trivy-action@master # pre-scan gate
+                uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297 # master on 2026-08-16
         with:
           image-ref: {slug}:scan
           format: 'sarif'
@@ -417,6 +427,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 """
     ci_cd_yml = ci_cd_yml.replace("{slug}", slug).replace("{product_name}", product_name)
+    ci_cd_yml = ci_cd_yml.replace("                    GOBIN=", "          GOBIN=")
+    ci_cd_yml = ci_cd_yml.replace("                    \"$(go env GOPATH)", "          \"$(go env GOPATH)")
+    ci_cd_yml = ci_cd_yml.replace("            - name: Install Python", "      - name: Install Python")
+    ci_cd_yml = ci_cd_yml.replace("            - name: Run Generated", "      - name: Run Generated")
+    ci_cd_yml = ci_cd_yml.replace("                run: python3", "        run: python3")
+    ci_cd_yml = ci_cd_yml.replace("                env:", "        env:")
+    ci_cd_yml = ci_cd_yml.replace("                    INPUT_", "          INPUT_")
+    ci_cd_yml = ci_cd_yml.replace("                uses: aquasecurity/trivy-action", "        uses: aquasecurity/trivy-action")
 
     # 4. Automate tagging script to push release and trigger marketplace action (Plain string to avoid f-string issues!)
     publish_sh = """#!/bin/bash
@@ -492,38 +510,16 @@ updates:
           - "*"
 """
 
-    # 6. Basic entrypoint.py python script
-    entrypoint_py = """import os
-import sys
-
-def main():
-    print("Executing {product_name} security validation action...")
-    scan_path = os.getenv("INPUT_SCAN-PATH", ".")
-    severity_threshold = os.getenv("INPUT_SEVERITY-THRESHOLD", "HIGH")
-
-    print(f"Auditing directory path: {scan_path}")
-    print(f"Enforcing severity gate: {severity_threshold}")
-
-    # Placeholder for scanning logic
-    print("Analyzing repository workflow configurations...")
-    print("SUCCESS: 0 high-risk security flaws discovered in workflows!")
-
-    # Writing outputs
-    # Grounded in GitHub Actions Outputs instructions
-    if "GITHUB_OUTPUT" in os.environ:
-        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-            f.write("report-path=./validation-report.md\\n")
-            f.write("score-summary=100\\n")
-
-if __name__ == "__main__":
-    main()
-"""
-    entrypoint_py = entrypoint_py.replace("{product_name}", product_name)
+    # 6. Use the validated runtime and dependency manifest as scaffold templates.
+    project_root = Path(__file__).resolve().parents[1]
+    entrypoint_py = (project_root / "entrypoint.py").read_text(encoding="utf-8")
+    entrypoint_py = entrypoint_py.replace("GHA Workflow Guardian", product_name)
+    requirements_txt = (project_root / "requirements.txt").read_text(encoding="utf-8")
 
     return {
         'action.yml': action_yml,
         'Dockerfile': dockerfile,
-        'requirements.txt': '# This action currently uses only the Python standard library.\n',
+        'requirements.txt': requirements_txt,
         '.github/workflows/ci-cd.yml': ci_cd_yml,
         'automated-release.sh': publish_sh,
         '.github/dependabot.yml': dependabot_yml,

@@ -30,6 +30,18 @@ jobs:
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
           "$(go env GOPATH)/bin/actionlint" .github/workflows/*.yml
 
+      - name: Install Scanner Dependencies
+        run: python3 -m pip install --no-deps --requirement requirements.txt
+
+      - name: Run Scanner Tests
+        run: python3 -m unittest discover --start-directory tests --verbose
+
+      - name: Scan Repository Workflows
+        env:
+          INPUT_SCAN-PATH: '.'
+          INPUT_SEVERITY-THRESHOLD: 'HIGH'
+        run: python3 entrypoint.py
+
   security-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -53,7 +65,7 @@ jobs:
 
       # Perform vulnerability analysis before pushing to registry
       - name: Scan Image with Trivy
-        uses: aquasecurity/trivy-action@master # pre-scan gate
+        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297 # master on 2026-08-16
         with:
           image-ref: gha-workflow-guardian:scan
           format: 'sarif'

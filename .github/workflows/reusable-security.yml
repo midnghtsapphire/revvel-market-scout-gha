@@ -50,11 +50,13 @@ jobs:
         uses: docker/setup-buildx-action@c167a562657d9d047054ccd432fc1476a81d5c3e # v4.0.0
 
       - name: Static Analysis of Dockerfile
+        env:
+          DOCKERFILE_PATH: ${{ inputs.dockerfile_path }}
         run: |
-          echo "Auditing security footprint of Dockerfile: ${{ inputs.dockerfile_path }}"
+          echo "Auditing security footprint of Dockerfile: $DOCKERFILE_PATH"
           # Enforce security checklist via simple grep rules before building
-          if ! grep -q "USER" "${{ inputs.dockerfile_path }}"; then
-            echo "::warning file=${{ inputs.dockerfile_path }}::Dockerfile lacks a explicit USER directive. Running as non-root is highly recommended!"
+          if ! grep -q "USER" "$DOCKERFILE_PATH"; then
+            echo "::warning file=$DOCKERFILE_PATH::Dockerfile lacks an explicit USER directive. Running as non-root is highly recommended!"
           fi
 
       - name: Build Local Image for Vulnerability Scanning
@@ -66,7 +68,7 @@ jobs:
           tags: ${{ inputs.image_name }}:local-scan
 
       - name: Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297 # master on 2026-08-16
         with:
           image-ref: ${{ inputs.image_name }}:local-scan
           format: 'sarif'

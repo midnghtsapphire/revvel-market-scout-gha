@@ -1,5 +1,5 @@
 name: 'GHA Workflow Guardian'
-description: 'Secure composite action scanning GHA workflows for supply-chain risks, script injection vectors, and excessive permissions.'
+description: 'Secure Docker action scanning GHA workflows for supply-chain risks, script injection, and excessive permissions.'
 author: 'MarketScout GHA Scaffolder'
 branding:
   icon: 'shield'
