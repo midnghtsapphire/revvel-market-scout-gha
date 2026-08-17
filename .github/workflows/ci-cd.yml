@@ -54,10 +54,10 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c167a562657d9d047054ccd432fc1476a81d5c3e # v4.0.0
+        uses: docker/setup-buildx-action@v4.0.0
 
       - name: Build Local Image for Scanning
-        uses: docker/build-push-action@ca012c3d74f350beca096514a1c516fa280d5ca6 # v6.15.0
+        uses: docker/build-push-action@v6.15.0
         with:
           context: .
           load: true
