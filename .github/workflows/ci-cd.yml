@@ -54,10 +54,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4.2.0
+        uses: docker/setup-buildx-action@v4.4.1
 
       - name: Build Local Image for Scanning
-        uses: docker/build-push-action@v7.3.0
+        uses: docker/build-push-action@v7.4.0
         with:
           context: .
           load: true
@@ -65,7 +65,7 @@ jobs:
 
       # Perform vulnerability analysis before pushing to registry
       - name: Scan Image with Trivy
-        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297 # master on 2026-08-16
+        uses: aquasecurity/trivy-action@c03d123cb480c08c69b054af418ea5e69fe6e57e # master on 2026-08-16
         with:
           image-ref: gha-workflow-guardian:scan
           format: 'sarif'
