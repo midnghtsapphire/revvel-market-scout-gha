@@ -68,7 +68,7 @@ jobs:
           tags: ${{ inputs.image_name }}:local-scan
 
       - name: Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@c03d123cb480c08c69b054af418ea5e69fe6e57e # master on 2026-08-16
+        uses: aquasecurity/trivy-action@38b337fff0a2f984d5be173c99e3f633438167ec # master on 2026-08-16
         with:
           image-ref: ${{ inputs.image_name }}:local-scan
           format: 'sarif'
